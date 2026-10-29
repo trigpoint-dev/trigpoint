@@ -50,3 +50,27 @@ class BranchNotFoundError(TrigpointError):
 
 class LockTimeoutError(TrigpointError):
     """A repository lock could not be acquired in time."""
+
+
+class GitHubAPIError(TrigpointError):
+    """The GitHub API returned an error. ``message`` is already redacted."""
+
+    def __init__(self, message: str, *, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+
+
+class AuthError(GitHubAPIError):
+    """Bad, expired or insufficient credentials (HTTP 401 / non-rate-limit 403)."""
+
+
+class NotFoundError(GitHubAPIError):
+    """HTTP 404. GitHub also returns this for repos the credential cannot see."""
+
+
+class RateLimitError(GitHubAPIError):
+    """Rate limited and the required wait exceeds the configured maximum."""
+
+    def __init__(self, message: str, *, retry_after: float | None = None) -> None:
+        super().__init__(message, status=429)
+        self.retry_after = retry_after

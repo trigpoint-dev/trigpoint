@@ -2,8 +2,9 @@
 
 Safe, budgeted repo grounding for LLMs and agents.
 
-> **Status: pre-alpha.** The security core, the local pipeline, the cache layers and the
-> hardened git sync exist; GitHub App auth and discovery are next. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for
+> **Status: pre-alpha.** The security core, the local pipeline, the cache layers, the
+> hardened git sync and GitHub App auth with discovery exist; the optional LLM describe
+> pass and an MCP server are next. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for
 > the design and roadmap.
 
 trigpoint turns a Git repository into a structured, token-budgeted `RepoMap` that an LLM
@@ -51,6 +52,29 @@ print(render_markdown(repo_map, budget_tokens=4000).markdown)
   twice (strict rules, then `git check-ref-format`). Secret paths are excluded before
   checkout, so they are never written to disk. A reader/writer lock keeps a refresh from
   changing files under a running parse. Needs git 2.31 or newer.
+- **GitHub App auth** (`trigpoint.auth`, `pip install "trigpoint[github]"`): works with **any**
+  GitHub App, since you supply its app id and private key and nothing is tied to an org.
+  Signs the RS256 app JWT, exchanges it for installation tokens (least privilege by default:
+  `contents:read`, `metadata:read`; optionally narrowed to specific repos), caches them in
+  memory and refreshes before expiry with one request per burst. Includes pickers for
+  installations, repositories and branches, and configurable endpoints for GitHub Enterprise
+  Server. The HTTP client never follows redirects or cross-origin pagination links, handles
+  rate limits and retries, and redacts errors.
+
+  ```python
+  from trigpoint.auth import GitHubApp
+  from trigpoint.sync import Syncer
+
+  app = GitHubApp.from_env()   # TRIGPOINT_GITHUB_APP_ID + _PRIVATE_KEY (or _PRIVATE_KEY_PATH)
+  inst = app.discovery.find_installation("some-org")         # or list_installations()
+  repos = app.discovery.list_repositories(inst.id)           # repo picker
+  branches = app.discovery.list_branches(inst.id, "some-org", repos[0].name)  # branch picker
+
+  syncer = Syncer("/data/shared", clone_root="/data/projects",
+                  base_url=app.endpoints.git_base_url,
+                  token_provider=app.token_provider(inst.id))
+  result = syncer.ensure("some-org", repos[0].name, "main", project_id="proj-1")
+  ```
 - **`trigpoint.security`**: secret-path policy, secret scanner and redactor, `SecretStr`,
   untrusted-content fencing with injection heuristics, and path containment helpers.
 
