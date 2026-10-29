@@ -29,3 +29,24 @@ class SchemaError(TrigpointError):
 
 class InvalidKeyError(TrigpointError, ValueError):
     """A cache key or repository identifier failed validation."""
+
+
+class GitError(TrigpointError):
+    """A git invocation failed. ``stderr`` is already redacted."""
+
+    def __init__(self, message: str, *, returncode: int | None = None, stderr: str = "") -> None:
+        super().__init__(f"{message}: {stderr}" if stderr else message)
+        self.returncode = returncode
+        self.stderr = stderr
+
+
+class GitVersionError(GitError):
+    """The installed git is too old for the required hardening."""
+
+
+class BranchNotFoundError(TrigpointError):
+    """The requested branch does not exist on the remote."""
+
+
+class LockTimeoutError(TrigpointError):
+    """A repository lock could not be acquired in time."""

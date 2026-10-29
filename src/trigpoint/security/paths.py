@@ -72,6 +72,18 @@ _MAX_GITIGNORE_BYTES = 256 * 1024
 BOM = chr(0xFEFF)
 
 
+def sparse_checkout_patterns(extra_secret_patterns: Iterable[str] = ()) -> list[str]:
+    """Sparse-checkout (non-cone) patterns that include everything except secret paths.
+
+    Used so secret-adjacent files are never *materialized* in a clone. That matters most on
+    Amazon S3 Files, where anything written to the mount is exported to a versioned bucket
+    and deleting it afterwards does not remove the history.
+    """
+    deny = [*(p for p in SECRET_PATH_PATTERNS if not p.startswith("!")), *extra_secret_patterns]
+    allow = [p[1:] for p in SECRET_PATH_PATTERNS if p.startswith("!")]
+    return ["/*", *(f"!{p}" for p in deny), *allow]
+
+
 def _normalize(rel: str) -> str:
     rel = rel.replace("\\", "/")
     while rel.startswith("./"):

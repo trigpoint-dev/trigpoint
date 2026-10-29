@@ -13,6 +13,7 @@ from trigpoint.security.paths import (
     PathPolicy,
     read_text_safely,
     resolve_within,
+    sparse_checkout_patterns,
 )
 from trigpoint.security.redact import (
     RedactingFilter,
@@ -45,5 +46,6 @@ __all__ = [
     "resolve_within",
     "sanitize_text",
     "scan",
+    "sparse_checkout_patterns",
     "shannon_entropy",
 ]

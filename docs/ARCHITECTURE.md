@@ -101,10 +101,14 @@ replacement, not a hosted service (a thin server wrapper may come later).
   `clone_root/{project_id}/{reponame}` (Windows junction fallback). Projects on the same
   repo share one clone.
 - Flow under lock: `ls-remote refs/heads/<b>`; SHA == local HEAD -> no-op;
-  else `fetch --depth 1 --no-tags` of the explicit refspec, `reset --hard FETCH_HEAD`,
-  `clean -fdx`.
-- **Reader/writer lock:** parse holds shared, refresh holds exclusive (so `reset --hard`
-  never mutates files under a parser). flock-style, works on EFS (NFSv4); stale-lock timeout.
+  else `git init` (first time) + `fetch --depth 1 --no-tags -- <clean url> refs/heads/<b>`,
+  `checkout --force --detach <sha>`, `clean -ffdx`. No remote is configured, so neither the
+  token nor the URL is ever written to `.git/config`. Secret paths are excluded by
+  sparse-checkout *before* checkout, so they are never materialized.
+- **Reader/writer lock:** parse holds shared, refresh holds exclusive (so `checkout --force`
+  never mutates files under a parser). `flock` on POSIX (EFS / NFSv4 / S3 Files), `LockFileEx`
+  on Windows, no extra dependency. One persistent lock file per repo, never deleted. Advisory
+  locks die with their process, so there is no stale-lock cleanup to get wrong.
 - **Hardened args:** strict regex for owner/repo, `git check-ref-format`, reject leading
   `-`, fully-qualified refs, `--end-of-options` and `--`, no shell, timeouts, output caps.
 - **Post-refresh sanitize + cap** (layer 3 of secrets): delete secret-adjacent files from
