@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
-from typing import Any
+from typing import Any, TypeVar
 
 from trigpoint.security.registry import SecretRegistry, default_registry
 from trigpoint.security.scanner import Finding, apply_redactions, scan
@@ -50,6 +51,33 @@ class Redactor:
         if isinstance(obj, tuple):
             return tuple(self.redact_obj(v) for v in obj)
         return obj
+
+
+T = TypeVar("T")
+
+
+def redact_dataclass(obj: T, redactor: Redactor, *, skip: frozenset[str] = frozenset()) -> T:
+    """Return a copy of a (nested, frozen) dataclass with every prose string redacted.
+
+    Fields named in ``skip`` (identifiers, paths, hashes) are left untouched so redaction
+    can never corrupt a path or symbol name.
+    """
+
+    def walk(value: Any, key: str | None) -> Any:
+        if dataclasses.is_dataclass(value) and not isinstance(value, type):
+            changes = {
+                f.name: walk(getattr(value, f.name), f.name) for f in dataclasses.fields(value)
+            }
+            return dataclasses.replace(value, **changes)
+        if isinstance(value, str):
+            return value if key in skip else redactor.redact(value)
+        if isinstance(value, tuple):
+            return tuple(walk(v, key) for v in value)
+        if isinstance(value, list):
+            return [walk(v, key) for v in value]
+        return value
+
+    return walk(obj, None)  # type: ignore[no-any-return]
 
 
 class RedactingFilter(logging.Filter):

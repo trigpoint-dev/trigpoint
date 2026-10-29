@@ -18,6 +18,7 @@ from trigpoint.security.redact import (
     RedactingFilter,
     Redactor,
     install_log_redaction,
+    redact_dataclass,
 )
 from trigpoint.security.registry import SecretRegistry, default_registry
 from trigpoint.security.scanner import Finding, apply_redactions, scan, shannon_entropy
@@ -40,6 +41,7 @@ __all__ = [
     "fence_untrusted",
     "install_log_redaction",
     "read_text_safely",
+    "redact_dataclass",
     "resolve_within",
     "sanitize_text",
     "scan",

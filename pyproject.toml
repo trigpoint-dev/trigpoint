@@ -24,7 +24,11 @@ classifiers = [
 ]
 dependencies = [
   "pathspec>=1.0",
+  "tomli>=2.0; python_version < '3.11'",
 ]
+
+[project.scripts]
+trigpoint = "trigpoint.cli:main"
 
 [project.optional-dependencies]
 dev = [
