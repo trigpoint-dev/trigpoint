@@ -163,5 +163,5 @@ def test_cli(sample_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
     out = capsys.readouterr().out
     assert "## Routes" in out and "shop" in out
     assert main(["map", str(sample_repo), "--format", "json"]) == 0
-    assert '"schema_version": 1' in capsys.readouterr().out
+    assert '"schema_version": 2' in capsys.readouterr().out
     assert main(["map", str(sample_repo / "does-not-exist")]) == 2

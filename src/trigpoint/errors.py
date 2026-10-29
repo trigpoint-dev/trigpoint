@@ -74,3 +74,7 @@ class RateLimitError(GitHubAPIError):
     def __init__(self, message: str, *, retry_after: float | None = None) -> None:
         super().__init__(message, status=429)
         self.retry_after = retry_after
+
+
+class LLMError(TrigpointError):
+    """An LLM provider call failed. The message is already redacted."""

@@ -12,12 +12,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from trigpoint.assemble import count_files
-from trigpoint.domain import ModelDef, RepoMap, Route
+from trigpoint.domain import ModelDef, Module, RepoMap, Route
 from trigpoint.extract.base import clip
 from trigpoint.security import fence_untrusted
-from trigpoint.understand.modules import ROOT_MODULE
+from trigpoint.understand.modules import ROOT_MODULE, module_of
 
 Counter = Callable[[str], int]
+
+GENERATED_MARK = " (generated)"  # provenance: an LLM wrote this, not the repo
 
 SECTION_ORDER = ("overview", "stack", "modules", "routes", "models", "symbols", "tree")
 _TITLES = {
@@ -68,7 +70,7 @@ def _overview(m: RepoMap) -> list[str]:
     c = m.classification
     items = [f"**{m.doc.title or m.name}** - {c.type} (confidence {c.confidence:.2f})"]
     if m.doc.summary:
-        items.append(m.doc.summary)
+        items.append(m.doc.summary + (GENERATED_MARK if m.doc.generated else ""))
     if m.stack.languages:
         items.append(f"Languages: {_percent_languages(m)}")
     items.append(f"Files: {total} ({tests} test, {generated} generated); LOC: {loc:,}")
@@ -93,25 +95,63 @@ def _stack(m: RepoMap) -> list[str]:
     return items
 
 
+def _module_line(mod: Module) -> str:
+    langs = ", ".join(lang for lang, _ in mod.languages[:3]) or "docs/config"
+    label = mod.name if mod.name == ROOT_MODULE else mod.name + "/"
+    line = f"- `{label}` ({langs}; {mod.loc:,} LOC)"
+    if mod.description:
+        line += f" - {mod.description}" + (GENERATED_MARK if mod.description_generated else "")
+    extras = []
+    if mod.top_symbols:
+        extras.append("Key: " + ", ".join(f"{s.name} ({s.kind})" for s in mod.top_symbols[:6]))
+    if mod.route_indices:
+        extras.append(f"Routes: {len(mod.route_indices)}")
+    if mod.models:
+        extras.append("Models: " + ", ".join(mod.models[:6]))
+    if extras:
+        line += "\n  " + "; ".join(extras)
+    return line
+
+
 def _modules(m: RepoMap) -> list[str]:
-    items = []
-    for mod in m.modules:
-        langs = ", ".join(lang for lang, _ in mod.languages[:3]) or "docs/config"
-        label = mod.name if mod.name == ROOT_MODULE else mod.name + "/"
-        line = f"- `{label}` ({langs}; {mod.loc:,} LOC)"
-        if mod.description:
-            line += f" - {mod.description}"
-        extras = []
-        if mod.top_symbols:
-            extras.append("Key: " + ", ".join(f"{s.name} ({s.kind})" for s in mod.top_symbols[:6]))
-        if mod.route_indices:
-            extras.append(f"Routes: {len(mod.route_indices)}")
-        if mod.models:
-            extras.append("Models: " + ", ".join(mod.models[:6]))
-        if extras:
-            line += "\n  " + "; ".join(extras)
-        items.append(line)
-    return items
+    return [_module_line(mod) for mod in m.modules]
+
+
+def module_context(
+    repo_map: RepoMap, name: str, *, max_symbols: int = 8, max_items: int = 5
+) -> str:
+    """Rendered Markdown describing one module: the input for its one-line description."""
+    mod = next((x for x in repo_map.modules if x.name == name), None)
+    if mod is None:
+        raise KeyError(name)
+    importance = dict(repo_map.importance)
+    test_paths = {f.path for f in repo_map.files if f.is_test}
+    in_module = [
+        s
+        for s in repo_map.symbols
+        if module_of(s.path) == name
+        and s.exported
+        and s.kind != "method"
+        and s.path not in test_paths
+    ]
+    in_module.sort(key=lambda s: (-importance.get(s.path, 0.0), s.path, s.line))
+    lines = [_module_line(mod)]
+    if in_module:
+        lines.append("Symbols:")
+        lines += [
+            f"- {s.path}:{s.line} "
+            + (s.signature or f"{s.kind} {s.name}")
+            + (f" - {s.doc}" if s.doc else "")
+            for s in in_module[:max_symbols]
+        ]
+    if mod.route_indices:
+        lines.append("Routes:")
+        lines += [_route_line(repo_map.routes[i]) for i in mod.route_indices[:max_items]]
+    models = [md for md in repo_map.models if md.name in mod.models]
+    if models:
+        lines.append("Models:")
+        lines += [_model_line(md) for md in models[:max_items]]
+    return "\n".join(lines)
 
 
 def _route_line(r: Route) -> str:

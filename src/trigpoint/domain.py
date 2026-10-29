@@ -11,7 +11,7 @@ from trigpoint.errors import SchemaError
 
 _T = TypeVar("_T")
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +95,7 @@ class DocInfo:
     path: str = ""
     title: str = ""
     summary: str = ""
+    generated: bool = False  # True when an LLM wrote the summary (the README gave nothing)
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,6 +123,7 @@ class Module:
     top_symbols: tuple[SymbolRef, ...]
     route_indices: tuple[int, ...]
     models: tuple[str, ...]
+    description_generated: bool = False  # True when an LLM wrote the description
 
 
 @dataclass(frozen=True, slots=True)

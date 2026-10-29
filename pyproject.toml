@@ -35,12 +35,21 @@ github = [
   "httpx>=0.27",
   "PyJWT[crypto]>=2.8",
 ]
+# Optional LLM providers for the describe pass. Any LLM works via CallableLLM; these two are
+# ready-made adapters (OpenAI-compatible HTTP covers most hosted and local models).
+openai-compat = [
+  "httpx>=0.27",
+]
+anthropic = [
+  "anthropic>=1.0",
+]
 dev = [
   "pytest>=8",
   "ruff>=0.6",
   "mypy>=1.10",
   "httpx>=0.27",
   "PyJWT[crypto]>=2.8",
+  "anthropic>=1.0",
 ]
 
 [project.urls]
