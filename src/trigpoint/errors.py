@@ -21,3 +21,11 @@ class SecretPathError(SecurityError):
 
 class LimitExceededError(SecurityError):
     """A configured resource limit was exceeded."""
+
+
+class SchemaError(TrigpointError):
+    """A serialized document has an unsupported version or is malformed."""
+
+
+class InvalidKeyError(TrigpointError, ValueError):
+    """A cache key or repository identifier failed validation."""

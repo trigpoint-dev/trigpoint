@@ -2,8 +2,8 @@
 
 Safe, budgeted repo grounding for LLMs and agents.
 
-> **Status: pre-alpha.** The security core and the local pipeline exist; GitHub App auth,
-> hardened sync and caching are next. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for
+> **Status: pre-alpha.** The security core, the local pipeline and the cache layers exist;
+> GitHub App auth and hardened sync are next. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for
 > the design and roadmap.
 
 trigpoint turns a Git repository into a structured, token-budgeted `RepoMap` that an LLM
@@ -38,6 +38,12 @@ print(render_markdown(repo_map, budget_tokens=4000).markdown)
 - **Understanding**: repo type, modules, an import graph with PageRank importance, a
   collapsed directory tree.
 - **Rendering**: seven sections packed greedily into a token budget, deterministic output.
+- **Caching** (`trigpoint.cache`): three chained layers behind a `CacheStore` port. The
+  repo-map is keyed by `(repo_key, git SHA, extractor + schema version)`, the LLM describe
+  step by `(repo_key, sha256(rendered section))`, and `connection.md` by project. The local
+  store writes atomically (temp file + rename, no hard links or lock files), shards its
+  directories and isolates tenants, so it is safe on EFS or Amazon S3 Files mounts. Stale or
+  corrupt entries are treated as misses and healed.
 - **`trigpoint.security`**: secret-path policy, secret scanner and redactor, `SecretStr`,
   untrusted-content fencing with injection heuristics, and path containment helpers.
 

@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, TypeVar
+
+from trigpoint.errors import SchemaError
+
+_T = TypeVar("_T")
 
 SCHEMA_VERSION = 1
 
@@ -140,3 +145,69 @@ class RepoMap:
 
     def to_json(self, indent: int | None = None) -> str:
         return json.dumps(self.to_dict(), indent=indent, sort_keys=True)
+
+
+def _many(items: Iterable[Any], build: Callable[[Any], _T]) -> tuple[_T, ...]:
+    return tuple(build(i) for i in items)
+
+
+def _pairs(items: Iterable[Any]) -> tuple[tuple[Any, Any], ...]:
+    return tuple((a, b) for a, b in items)
+
+
+def repo_map_from_dict(data: dict[str, Any]) -> RepoMap:
+    """Rebuild a RepoMap from ``RepoMap.to_dict()`` output (e.g. after a JSON round trip).
+
+    Raises SchemaError for an unsupported ``schema_version`` or a malformed document, so a
+    cache can treat either as a miss and recompute.
+    """
+    try:
+        if data["schema_version"] != SCHEMA_VERSION:
+            raise SchemaError(
+                f"unsupported schema_version {data['schema_version']!r} (want {SCHEMA_VERSION})"
+            )
+        cls = data["classification"]
+        stack = data["stack"]
+        return RepoMap(
+            schema_version=data["schema_version"],
+            name=data["name"],
+            commit_sha=data["commit_sha"],
+            classification=Classification(
+                cls["type"], float(cls["confidence"]), tuple(cls["evidence"])
+            ),
+            stack=StackInfo(
+                languages=_pairs(stack["languages"]),
+                frameworks=tuple(stack["frameworks"]),
+                datastores=tuple(stack["datastores"]),
+                infra=tuple(stack["infra"]),
+                package_managers=tuple(stack["package_managers"]),
+                dependencies=tuple(stack["dependencies"]),
+                manifests=tuple(stack["manifests"]),
+            ),
+            doc=DocInfo(**data["doc"]),
+            files=_many(data["files"], lambda d: FileRecord(**d)),
+            symbols=_many(data["symbols"], lambda d: Symbol(**d)),
+            routes=_many(data["routes"], lambda d: Route(**d)),
+            models=_many(
+                data["models"],
+                lambda d: ModelDef(**{**d, "fields": _many(d["fields"], lambda f: FieldDef(**f))}),
+            ),
+            modules=_many(
+                data["modules"],
+                lambda d: Module(
+                    **{
+                        **d,
+                        "languages": _pairs(d["languages"]),
+                        "top_symbols": _many(d["top_symbols"], lambda s: SymbolRef(**s)),
+                        "route_indices": tuple(d["route_indices"]),
+                        "models": tuple(d["models"]),
+                    }
+                ),
+            ),
+            importance=_pairs(data["importance"]),
+            tree=data["tree"],
+        )
+    except SchemaError:
+        raise
+    except (KeyError, TypeError, ValueError) as exc:
+        raise SchemaError(f"malformed RepoMap document: {exc}") from exc
